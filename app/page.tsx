@@ -14,7 +14,7 @@ import {
   SelectItem,
 } from "@nextui-org/react";
 import { cn } from "@nextui-org/theme";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useLayoutEffect } from "react";
 
 import { title } from "@/components/primitives";
 
@@ -27,6 +27,12 @@ export default function Home() {
   >([]);
   const [currentChapterIdx, setCurrentChapterIdx] = useState(0);
   const [editContent, setEditContent] = useState("");
+  // Ref to store the textarea element
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  // Ref to store the position to set cursor after insert
+  const insertCursorPos = useRef<number | null>(null);
+  // Ref to store scrollTop after insert
+  const insertScrollTop = useRef<number | null>(null);
 
   // Fetch file list
   useEffect(() => {
@@ -83,6 +89,64 @@ export default function Home() {
     );
   };
 
+  // Insert chapter split marker at cursor position
+  const handleInsertSplit = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const marker = "====SPLIT CHAPTER====";
+    // Use textarea.value for insertion to ensure sync with selectionStart/End
+    const before = textarea.value.slice(0, start);
+    const after = textarea.value.slice(end);
+    const newValue = before + marker + after;
+    insertCursorPos.current = start + marker.length;
+    insertScrollTop.current = textarea.scrollTop;
+    setEditContent(newValue);
+    setChapters((prev) =>
+      prev.map((ch, idx) =>
+        idx === currentChapterIdx ? { ...ch, content: newValue } : ch
+      )
+    );
+  };
+
+  // 插入后精确设置光标和滚动（仅在插入操作后生效）
+  useLayoutEffect(() => {
+    if (insertCursorPos.current !== null && textareaRef.current) {
+      const textarea = textareaRef.current;
+      textarea.focus();
+      textarea.setSelectionRange(
+        insertCursorPos.current,
+        insertCursorPos.current
+      );
+      if (insertScrollTop.current !== null) {
+        textarea.scrollTop = insertScrollTop.current;
+        insertScrollTop.current = null;
+      }
+      insertCursorPos.current = null;
+    }
+  }, [editContent]);
+
+  // Split current chapter by marker
+  const handleSplitChapter = () => {
+    const current = chapters[currentChapterIdx];
+    if (!current) return;
+    const parts = editContent.split("====SPLIT CHAPTER====");
+    if (parts.length <= 1) return; // no split marker
+    const newChapters = parts.map((part) => ({
+      title: current.title,
+      subtitle: current.subtitle,
+      content: part.trim(),
+    }));
+    setChapters((prev) => [
+      ...prev.slice(0, currentChapterIdx),
+      ...newChapters,
+      ...prev.slice(currentChapterIdx + 1),
+    ]);
+    setCurrentChapterIdx(currentChapterIdx); // Keep at the first new chapter
+    setEditContent(newChapters[0].content);
+  };
+
   return (
     <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
       <div className="inline-block max-w-xl text-center justify-center">
@@ -104,7 +168,14 @@ export default function Home() {
           selectedKeys={selectedFile ? [selectedFile] : []}
           onSelectionChange={(keys) => {
             const arr = Array.from(keys);
-            setSelectedFile(arr[0] as string);
+            if (arr.length === 0) {
+              setSelectedFile(null);
+              setChapters([]);
+              setEditContent("");
+              setCurrentChapterIdx(0);
+            } else {
+              setSelectedFile(arr[0] as string);
+            }
           }}
         >
           {(item) => <SelectItem key={item.key}>{item.label}</SelectItem>}
@@ -210,8 +281,9 @@ export default function Home() {
                               />
                             }
                             variant="flat"
+                            onClick={handleInsertSplit}
                           >
-                            button-1
+                            Insert chapter split
                           </Button>
                         </div>
 
@@ -226,8 +298,9 @@ export default function Home() {
                             />
                           }
                           variant="flat"
+                          onClick={handleSplitChapter}
                         >
-                          button-2
+                          Split
                         </Button>
                       </div>
                       <div>
@@ -235,6 +308,8 @@ export default function Home() {
                           <div className="flex w-full h-full bg-slate-50 dark:bg-gray-200 rounded-lg p-2">
                             {/* Adjusted to use flex display for layout */}
                             <textarea
+                              id="chapter-editor-textarea"
+                              ref={textareaRef}
                               className="flex-1 p-3 resize-none rounded-md border border-transparent bg-slate-50 dark:bg-gray-200 text-gray-900"
                               value={editContent}
                               onChange={handleContentChange}
