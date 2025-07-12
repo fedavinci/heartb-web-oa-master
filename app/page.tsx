@@ -12,6 +12,11 @@ import {
   ScrollShadow,
   Select,
   SelectItem,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+  DropdownSection,
 } from "@nextui-org/react";
 import { cn } from "@nextui-org/theme";
 import React, { useEffect, useState, useRef, useLayoutEffect } from "react";
@@ -136,7 +141,7 @@ export default function Home() {
     const newChapters = parts.map((part) => ({
       title: current.title,
       subtitle: current.subtitle,
-      content: part.trim(),
+      content: part.replace(/^\n/, ""), // 只去掉开头一个换行，保留其余格式
     }));
     setChapters((prev) => [
       ...prev.slice(0, currentChapterIdx),
@@ -230,6 +235,101 @@ export default function Home() {
                           {ch.subtitle ? ` - ${ch.subtitle}` : ""}
                         </p>
                       </div>
+                      <Dropdown placement="bottom-end">
+                        <DropdownTrigger>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="light"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Icon icon="solar:menu-dots-bold" width={22} />
+                          </Button>
+                        </DropdownTrigger>
+                        <DropdownMenu aria-label="Chapter Actions">
+                          <DropdownSection title="Action">
+                            <DropdownItem
+                              key="combine"
+                              startContent={
+                                <svg
+                                  width={24}
+                                  height={24}
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                >
+                                  <path
+                                    d="M4 10H20"
+                                    stroke="black"
+                                    strokeWidth={1.5}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="M4 14H20"
+                                    stroke="black"
+                                    strokeWidth={1.5}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="M12 4V10M9 7L12 10L15 7"
+                                    stroke="black"
+                                    strokeWidth={1.5}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                  <path
+                                    d="M12 20V14M9 17L12 14L15 17"
+                                    stroke="black"
+                                    strokeWidth={1.5}
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                              }
+                              onClick={() => {
+                                // Merge logic: merge current and next chapter, keep current title/subtitle
+                                if (idx < chapters.length - 1) {
+                                  setChapters((prev) => {
+                                    const merged = [
+                                      ...prev.slice(0, idx),
+                                      {
+                                        title: prev[idx].title,
+                                        subtitle: prev[idx].subtitle,
+                                        content:
+                                          prev[idx].content +
+                                          "\n" +
+                                          prev[idx + 1].content,
+                                      },
+                                      ...prev.slice(idx + 2),
+                                    ];
+                                    return merged;
+                                  });
+                                  if (currentChapterIdx === idx) {
+                                    setEditContent(
+                                      chapters[idx].content +
+                                        "\n" +
+                                        chapters[idx + 1].content
+                                    );
+                                  } else if (currentChapterIdx > idx) {
+                                    setCurrentChapterIdx(currentChapterIdx - 1);
+                                  }
+                                }
+                              }}
+                            >
+                              <span className="flex flex-col items-start">
+                                <span>
+                                  <b>Combine</b> with next chapter
+                                </span>
+                                <span className="text-xs text-default-400 mt-0.5">
+                                  Combine this chapter with the next one
+                                </span>
+                              </span>
+                            </DropdownItem>
+                          </DropdownSection>
+                        </DropdownMenu>
+                      </Dropdown>
                     </CardHeader>
                     <Divider />
                     <CardBody>
